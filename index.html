@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="origin">
+<meta name="robots" content="noindex">
+<title>PAPERBULL has moved</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #06080c; color: #eef1f6; font: 600 16px/1.5 system-ui, -apple-system, sans-serif; text-align: center; padding: 16px; }
+  a { color: #ff9a2e; }
+</style>
+</head>
+<body>
+<p>PAPERBULL has moved to<br><a id="go" href="https://paperbullgame.github.io/paperbull/">paperbullgame.github.io/paperbull</a><br><small style="opacity:.6">Taking you there with your game…</small></p>
+<script>
+/* The game moved. This page reads the player's PAPERBULL login (and a guest's save) from this old
+   address, packs it into the link, and sends them to the same page at the new address, where the
+   game unpacks it so they stay logged in. The data goes in the part after #, which never reaches
+   any server. */
+(function () {
+  var NEW = 'https://paperbullgame.github.io/paperbull/';
+  var path = location.pathname.replace(/^\/paperbull\/?/, '');
+  var target = NEW + path + location.search;
+  var go = function (frag) {
+    location.replace(target + (frag ? '#pbmove=' + frag : location.hash));
+  };
+  var onGame = !path || path === 'index.html';
+  try {
+    if (!onGame || !window.TextEncoder) return go();
+    var get = function (k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+    var SKIP = /^pb2\.(player\.|quotes|market|leaderboard|g3d|o3d|abuse\.|dis\.)/;
+    var ls = {}, n = 0;
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k.indexOf('pb2.') !== 0 || SKIP.test(k)) continue;
+      var v = localStorage.getItem(k);
+      if (v && v.length < 40000) { ls[k] = v; n++; }
+    }
+    if (!n) return go();
+    var st = get('pb2.settings') || {}, cloud = get('pb2.cloud');
+    // saves: a logged-in player's save is on the server (fetched there), a guest's only lives here
+    var ids = [st.guestId];
+    if (!(cloud && cloud.token)) ids.push(st.activePlayerId);
+    ids.forEach(function (id) {
+      if (!id) return;
+      var s = localStorage.getItem('pb2.player.' + id);
+      if (s && s.length < 900000) ls['pb2.player.' + id] = s;
+    });
+    var ss = {};
+    try { var se = sessionStorage.getItem('pb2.session'); if (se) ss['pb2.session'] = se; } catch (e) {}
+    var json = JSON.stringify({ v: 1, ls: ls, ss: ss });
+    var b64 = function (u8) {
+      var s = '', CH = 0x8000;
+      for (var i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '.');
+    };
+    if (window.CompressionStream) {
+      new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw')))
+        .arrayBuffer()
+        .then(function (b) { go('z' + b64(new Uint8Array(b))); }, function () { go('j' + b64(new TextEncoder().encode(json))); });
+    } else go('j' + b64(new TextEncoder().encode(json)));
+  } catch (e) {
+    go();
+  }
+  setTimeout(function () { go(); }, 5000);
+})();
+</script>
+</body>
+</html>
